@@ -4,6 +4,15 @@ Workspace Cleaner is a Linux desktop app for finding generated project folders s
 
 It scans a directory, shows the folders and their sizes, and moves selected folders to the Linux Trash after confirmation. It never deletes folders during scanning and does not follow symbolic links.
 
+## Build and install from GitHub
+
+Clone the repository and enter the project directory:
+
+```bash
+git clone https://github.com/baseergroot/workspace-cleaner.git
+cd workspace-cleaner
+```
+
 ## Development requirements
 
 Ubuntu/Debian:
@@ -21,44 +30,32 @@ source "$HOME/.cargo/env"
 npm install
 ```
 
-Run the graphical app in development mode:
-
-```bash
-npm run tauri dev
-```
-
-## Build and install on Linux
-
-Create the Debian release package:
+Build the Debian package:
 
 ```bash
 npm run tauri build
 ```
 
-Install the Debian package:
+Install it:
 
 ```bash
 sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
 ```
 
+After installation, launch **Workspace Cleaner** from the desktop application menu.
+
+To run the graphical app in development mode instead:
+
+```bash
+npm run tauri dev
+```
+
 The `.deb` declares the small Linux graphics libraries required by Tauri. `apt` resolves and installs those automatically; users do not need Rust, Node.js, npm, or any project dependencies.
 
-After installation, **Workspace Cleaner** is available from the desktop application menu. The Debian package installs the application launcher and desktop entry automatically. You can also run it from a terminal with:
+The Debian package installs the application launcher automatically, so **Workspace Cleaner** appears in the desktop application menu. You can also run it from a terminal with:
 
 ```bash
 workspace-cleaner
-```
-
-The AppImage is also created in:
-
-```text
-src-tauri/target/release/bundle/appimage/
-```
-
-Make it executable before launching it:
-
-```bash
-chmod +x src-tauri/target/release/bundle/appimage/*.AppImage
 ```
 
 ## Safety
