@@ -58,6 +58,8 @@ The Debian package installs the application launcher automatically, so **Workspa
 workspace-cleaner
 ```
 
+The package includes the Workspace Cleaner icon for the desktop menu, launcher, and window.
+
 ## Safety
 
 - Scanning is read-only.
