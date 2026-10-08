@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Workspace Cleaner",
+  "version": "0.1.0",
+  "identifier": "com.workspacecleaner.app",
+  "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
+  "app": { "windows": [{ "title": "Workspace Cleaner", "width": 920, "height": 760, "resizable": true }], "security": { "csp": null } },
+  "bundle": { "active": true, "targets": "all", "linux": { "deb": { "depends": [] }, "appimage": { } } }
+}
