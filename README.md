@@ -19,7 +19,9 @@ Ubuntu/Debian:
 
 ```bash
 sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+sudo apt install pkg-config build-essential curl wget file libssl-dev \
+  libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+  libxdo-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
 Install Rust and Node.js, then install the frontend dependencies:
