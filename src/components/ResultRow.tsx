@@ -5,15 +5,17 @@ type ResultRowProps = {
   folder: FoundFolder;
   selected: boolean;
   onToggle: (path: string) => void;
+  disabled: boolean;
 };
 
-export function ResultRow({ folder, selected, onToggle }: ResultRowProps) {
+export function ResultRow({ folder, selected, onToggle, disabled }: ResultRowProps) {
   return (
     <label className="result-row">
       <input
         type="checkbox"
         value={folder.path}
         checked={selected}
+        disabled={disabled}
         onChange={() => onToggle(folder.path)}
       />
       <span className="folder-icon">⌁</span>

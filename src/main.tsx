@@ -14,15 +14,26 @@ function App() {
   const [folders, setFolders] = useState<FoundFolder[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const [trashing, setTrashing] = useState(false);
+  const [cancelingScan, setCancelingScan] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const browse = async () => {
-    const chosen = await open({ directory: true, multiple: false, title: "Choose workspace" });
-    if (typeof chosen === "string") setWorkspace(chosen);
+    setBrowsing(true);
+    try {
+      const chosen = await open({ directory: true, multiple: false, title: "Choose workspace" });
+      if (typeof chosen === "string") setWorkspace(chosen);
+    } catch (browseError) {
+      setError(String(browseError));
+    } finally {
+      setBrowsing(false);
+    }
   };
 
   const scan = async () => {
+    if (scanning || trashing) return;
     const root = workspace.trim();
     if (!root) {
       setError("Choose a workspace directory first.");
@@ -44,10 +55,26 @@ function App() {
         ? "Review the folders below before moving anything to Trash."
         : "No generated folders found in this workspace.");
     } catch (scanError) {
-      setError(String(scanError));
-      setMessage("");
+      if (String(scanError).includes("__SCAN_CANCELLED__")) {
+        setMessage("Scan cancelled.");
+      } else {
+        setError(String(scanError));
+        setMessage("");
+      }
     } finally {
       setScanning(false);
+    }
+  };
+
+  const cancelScan = async () => {
+    if (cancelingScan) return;
+    setCancelingScan(true);
+    try {
+      await invoke("cancel_scan");
+    } catch (cancelError) {
+      setError(String(cancelError));
+    } finally {
+      setCancelingScan(false);
     }
   };
 
@@ -68,8 +95,9 @@ function App() {
 
   const trashSelected = async () => {
     const paths = [...selectedPaths];
-    if (!paths.length || !scannedRoot || !confirm(`Move ${paths.length} folder(s) to the Trash?`)) return;
+    if (trashing || scanning || !paths.length || !scannedRoot || !confirm(`Move ${paths.length} folder(s) to the Trash?`)) return;
 
+    setTrashing(true);
     setError(null);
     setMessage("Moving folders to Trash…");
     try {
@@ -80,6 +108,8 @@ function App() {
     } catch (trashError) {
       setError(String(trashError));
       setMessage("");
+    } finally {
+      setTrashing(false);
     }
   };
 
@@ -97,15 +127,18 @@ function App() {
           <h1>Workspace Cleaner</h1>
           <p className="subtitle">Find generated folders and reclaim disk space safely.</p>
         </div>
-        <div className="logo">⌫</div>
       </header>
 
       <WorkspacePicker
         workspace={workspace}
         scanning={scanning}
+        browsing={browsing}
+        busy={trashing}
+        cancelingScan={cancelingScan}
         onWorkspaceChange={setWorkspace}
         onBrowse={browse}
         onScan={scan}
+        onCancelScan={cancelScan}
       />
       <Summary folders={folders} />
       <ResultsList
@@ -114,6 +147,8 @@ function App() {
         onToggle={togglePath}
         onToggleAll={toggleAll}
         onDelete={trashSelected}
+        busy={scanning || trashing}
+        trashing={trashing}
         status={status}
       />
       <p className="message" role="status">{error ? "" : message}</p>

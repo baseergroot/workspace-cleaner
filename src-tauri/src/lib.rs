@@ -1,7 +1,8 @@
 use serde::Serialize;
-use std::{fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}, sync::atomic::{AtomicBool, Ordering}};
 
 const TARGETS: &[&str] = &["node_modules", "dist", "build", ".next", ".nuxt", "coverage", ".turbo"];
+static SCAN_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize)]
 struct FoundFolder { path: String, name: String, project: String, size_bytes: u64 }
@@ -10,6 +11,7 @@ fn folder_size(path: &Path) -> u64 {
     let mut total = 0;
     let Ok(entries) = fs::read_dir(path) else { return 0 };
     for entry in entries.flatten() {
+        if SCAN_CANCELLED.load(Ordering::Relaxed) { return total; }
         let child = entry.path();
         if let Ok(metadata) = fs::symlink_metadata(&child) {
             if metadata.file_type().is_symlink() { continue; }
@@ -21,16 +23,31 @@ fn folder_size(path: &Path) -> u64 {
 }
 
 fn scan(path: &Path, root: &Path, found: &mut Vec<FoundFolder>) -> Result<(), String> {
-    let entries = fs::read_dir(path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    if SCAN_CANCELLED.load(Ordering::Relaxed) { return Err("__SCAN_CANCELLED__".into()); }
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return Ok(()),
+        Err(error) => return Err(format!("Cannot read {}: {error}", path.display())),
+    };
     for entry in entries {
-        let entry = entry.map_err(|e| e.to_string())?;
+        if SCAN_CANCELLED.load(Ordering::Relaxed) { return Err("__SCAN_CANCELLED__".into()); }
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => continue,
+            Err(error) => return Err(error.to_string()),
+        };
         let child = entry.path();
-        let metadata = fs::symlink_metadata(&child).map_err(|e| e.to_string())?;
+        let metadata = match fs::symlink_metadata(&child) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => continue,
+            Err(error) => return Err(error.to_string()),
+        };
         if metadata.file_type().is_symlink() || !metadata.is_dir() { continue; }
         let name = entry.file_name().to_string_lossy().to_string();
         if TARGETS.contains(&name.as_str()) {
             let project = child.parent().unwrap_or(root).strip_prefix(root).unwrap_or(Path::new(".")).display().to_string();
             found.push(FoundFolder { path: child.to_string_lossy().to_string(), name, project, size_bytes: folder_size(&child) });
+            if SCAN_CANCELLED.load(Ordering::Relaxed) { return Err("__SCAN_CANCELLED__".into()); }
         } else if name != ".git" {
             scan(&child, root, found)?;
         }
@@ -40,12 +57,18 @@ fn scan(path: &Path, root: &Path, found: &mut Vec<FoundFolder>) -> Result<(), St
 
 #[tauri::command]
 fn scan_workspace(root: String) -> Result<Vec<FoundFolder>, String> {
+    SCAN_CANCELLED.store(false, Ordering::Relaxed);
     let root_path = PathBuf::from(root).canonicalize().map_err(|e| format!("Invalid workspace: {e}"))?;
     if !root_path.is_dir() { return Err("Workspace path is not a directory".into()); }
     let mut found = Vec::new();
     scan(&root_path, &root_path, &mut found)?;
     found.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(found)
+}
+
+#[tauri::command]
+fn cancel_scan() {
+    SCAN_CANCELLED.store(true, Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -66,7 +89,7 @@ fn trash_folders(root: String, paths: Vec<String>) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_workspace, trash_folders])
+        .invoke_handler(tauri::generate_handler![scan_workspace, cancel_scan, trash_folders])
         .run(tauri::generate_context!())
         .expect("error while running Workspace Cleaner");
 }
